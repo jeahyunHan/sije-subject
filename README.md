@@ -1,16 +1,5 @@
 # Purchase Order Change Management API
 
-의류 생산 발주서의 생성, 소싱팀 확정, 주문자 변경 요청, 승인/반려, 변경 이력 조회를 구현한 NestJS API입니다.
-
-핵심 과제는 발주서가 여러 번 변경될 수 있는 상황에서 아래 요구사항을 만족하는 변경 이력 관리입니다.
-
-- 과거 시점 조회: 특정 날짜/시간 당시의 발주서 상태 조회
-- 변경 추적: 누가, 언제, 무엇을, 왜 변경했는지 기록
-- 비교 기능: 두 버전 사이의 필드별 변경 내용 비교
-- 감사 보존: 승인된 변경 이력을 `History`에 버전 스냅샷으로 보존
-
-변경 이력 관리 방식과 선택 근거는 [DESIGN.md](./DESIGN.md)에 정리되어 있습니다.
-
 ## 기술 스택
 
 - Node.js
@@ -21,70 +10,6 @@
 - Jest
 - Swagger
 - Docker, Docker Compose
-
-## 도메인 흐름
-
-```text
-[주문자] 발주서 생성
-  ↓
-[소싱팀] 초기 검토 및 발주서 확정
-  ↓
-[주문자] 변경 요청 생성
-  ↓
-[소싱팀] 변경 요청 검토
-  ├─ 승인: 발주서 최신값 업데이트 + History 새 버전 저장
-  └─ 반려: 발주서 유지 + Request에 검토 정보 저장
-  ↓
-[생산자] 최신 발주서 확인
-```
-
-## 데이터 모델 요약
-
-### Order
-
-발주서의 최신 상태를 저장합니다.
-
-| 필드 | 설명 |
-| --- | --- |
-| `orderNo` | 시스템이 생성하는 발주서 관리번호. 예: `PO-2026-000001` |
-| `productName` | 상품명 |
-| `quantity` | 현재 수량 |
-| `unitPrice` | 단가 |
-| `specification` | 사양 정보 JSON. 현재 `color`, `size`만 허용 |
-| `dueDate` | 현재 납기일 |
-| `status` | `DRAFT`, `PENDING`, `CONFIRMED`, `IN_PRODUCTION`, `COMPLETED` |
-| `version` | 현재 발주서 버전 |
-| `createdBy` | 발주 생성자 |
-
-### Request
-
-발주서 변경 요청과 승인/반려 검토 결과를 저장합니다.
-
-| 필드 | 설명 |
-| --- | --- |
-| `orderNo` | 변경 대상 발주서 관리번호 |
-| `reason` | 변경 사유 |
-| `requestedQuantity` | 변경할 수량 |
-| `requestedDueDate` | 변경할 납기일 |
-| `requestedBy` | 변경 요청자 |
-| `reviewedBy` | 승인/반려 처리자 |
-| `reviewComment` | 승인/반려 검토 의견 |
-| `reviewedAt` | 승인/반려 처리 시각 |
-| `status` | `PENDING`, `APPROVED`, `REJECTED` |
-
-### History
-
-승인된 발주서 상태를 버전 스냅샷으로 저장합니다.
-
-| 필드 | 설명 |
-| --- | --- |
-| `orderNo` | 발주서 관리번호 |
-| `requestId` | 승인된 변경 요청 ID. 초기 확정 이력은 `null` |
-| `version` | 발주서 버전 |
-| `productName`, `quantity`, `unitPrice`, `specification`, `dueDate`, `status` | 해당 버전 당시의 전체 발주서 상태 |
-| `changedFields` | 변경된 필드의 이전값/이후값 |
-| `approvedBy` | 확정 또는 승인 처리자 |
-| `effectiveAt` | 해당 버전이 유효해진 시각 |
 
 ## 실행 방법
 
@@ -245,38 +170,40 @@ http://localhost:3000/api-docs
 
 ### Orders
 
-| Method | Path | 설명 |
-| --- | --- | --- |
-| `POST` | `/orders` | 발주서 생성 |
-| `GET` | `/orders` | 발주서 목록 조회 |
-| `GET` | `/orders/{orderNo}` | 발주서 최신 상태 조회 |
+| Method  | Path                        | 설명                                         |
+| ------- | --------------------------- | -------------------------------------------- |
+| `POST`  | `/orders`                   | 발주서 생성                                  |
+| `GET`   | `/orders`                   | 발주서 목록 조회                             |
+| `GET`   | `/orders/{orderNo}`         | 발주서 최신 상태 조회                        |
 | `PATCH` | `/orders/{orderNo}/confirm` | 소싱팀 발주서 초기 확정 및 `History v1` 생성 |
 
 ### Requests
 
-| Method | Path | 설명 |
-| --- | --- | --- |
-| `POST` | `/requests` | 변경 요청 생성 |
-| `GET` | `/requests` | 변경 요청 목록 조회 |
+| Method  | Path                          | 설명                                   |
+| ------- | ----------------------------- | -------------------------------------- |
+| `POST`  | `/requests`                   | 변경 요청 생성                         |
+| `GET`   | `/requests`                   | 변경 요청 목록 조회                    |
 | `PATCH` | `/requests/{orderNo}/approve` | 해당 발주서의 `PENDING` 변경 요청 승인 |
-| `PATCH` | `/requests/{orderNo}/reject` | 해당 발주서의 `PENDING` 변경 요청 반려 |
+| `PATCH` | `/requests/{orderNo}/reject`  | 해당 발주서의 `PENDING` 변경 요청 반려 |
 
 `GET /requests` query:
 
-| Query | 설명 |
-| --- | --- |
-| `orderNo` | 특정 발주서의 변경 요청만 조회 |
-| `status` | `PENDING`, `APPROVED`, `REJECTED` |
+| Query     | 설명                              |
+| --------- | --------------------------------- |
+| `orderNo` | 특정 발주서의 변경 요청만 조회    |
+| `status`  | `PENDING`, `APPROVED`, `REJECTED` |
 
 ### Histories
 
-| Method | Path | 설명 |
-| --- | --- | --- |
-| `GET` | `/histories` | 모든 발주서의 전체 변경 이력 조회 |
-| `GET` | `/histories/{orderNo}` | 특정 발주서 변경 이력 조회 |
-| `GET` | `/histories/{orderNo}/versions/{version}` | 특정 버전 조회 |
-| `GET` | `/histories/{orderNo}/as-of?at=2025-02-15T10:00:00.000Z` | 특정 시점 기준 발주서 상태 조회 |
-| `GET` | `/histories/{orderNo}/compare?fromVersion=1&toVersion=2` | 버전 간 변경 내용 비교 |
+| Method | Path                                                     | 설명                              |
+| ------ | -------------------------------------------------------- | --------------------------------- |
+| `GET`  | `/histories`                                             | 모든 발주서의 전체 변경 이력 조회 |
+| `GET`  | `/histories/{orderNo}`                                   | 특정 발주서 변경 이력 조회        |
+| `GET`  | `/histories/{orderNo}/versions/{version}`                | 특정 버전 조회                    |
+| `GET`  | `/histories/{orderNo}/as-of?at=2025-02-15`               | 특정 시점 기준 발주서 상태 조회   |
+| `GET`  | `/histories/{orderNo}/compare?fromVersion=1&toVersion=2` | 버전 간 변경 내용 비교            |
+
+`/histories/{orderNo}/as-of`의 `at`은 `YYYY-MM-DD` 형식으로 전달합니다. 서버는 이 값을 한국시간(`Asia/Seoul`) 기준 해당 날짜의 마지막 시점으로 해석합니다. 예를 들어 `2025-02-15`는 `2025-02-15 23:59:59.999 KST`까지 유효해진 최신 버전을 조회합니다. ISO timestamp처럼 형식이 다르면 `ORDER_HISTORY_INVALID_QUERY`를 반환합니다.
 
 ## 요청 예시
 
@@ -403,35 +330,35 @@ e2e 테스트는 테스트 시작 전 아래 테이블을 정리합니다.
 
 ### 변경 저장 테스트
 
-| 시나리오 | 검증 내용 | 테스트 위치 |
-| --- | --- | --- |
-| 변경 요청 승인 시 이력 저장 | 승인 후 `Order.version` 증가, `Request.status = APPROVED`, `History` 새 버전 생성 검증 | `src/requests/requests.service.spec.ts` |
-| 여러 필드 동시 변경 | 수량과 납기일을 동시에 변경해도 하나의 승인 요청이 하나의 버전으로 저장되는지 검증 | `src/requests/requests.service.spec.ts`, `test/app.e2e-spec.ts` |
-| 승인 트랜잭션 롤백 | History 저장 실패 시 Order/Request 변경이 롤백되는지 검증 | `test/app.e2e-spec.ts` |
+| 시나리오                    | 검증 내용                                                                              | 테스트 위치                                                     |
+| --------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 변경 요청 승인 시 이력 저장 | 승인 후 `Order.version` 증가, `Request.status = APPROVED`, `History` 새 버전 생성 검증 | `src/requests/requests.service.spec.ts`                         |
+| 여러 필드 동시 변경         | 수량과 납기일을 동시에 변경해도 하나의 승인 요청이 하나의 버전으로 저장되는지 검증     | `src/requests/requests.service.spec.ts`, `test/app.e2e-spec.ts` |
+| 승인 트랜잭션 롤백          | History 저장 실패 시 Order/Request 변경이 롤백되는지 검증                              | `test/app.e2e-spec.ts`                                          |
 
 ### 이력 조회 테스트
 
-| 시나리오 | 검증 내용 | 테스트 위치 |
-| --- | --- | --- |
-| 특정 버전 조회 | `GET /histories/{orderNo}/versions/2`가 version 2의 전체 발주서 상태를 반환하는지 검증 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
-| 특정 시점 조회 | `GET /histories/{orderNo}/as-of?at=...`가 해당 시점에 유효한 버전을 반환하는지 검증 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
-| 존재하지 않는 버전 조회 | 없는 버전 조회 시 `ORDER_VERSION_NOT_FOUND` 반환 검증 | `src/orders/orders.service.spec.ts` |
-| 전체 변경 이력 조회 | `GET /histories`가 모든 발주서의 변경 이력을 반환하는지 검증 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
-| 특정 발주서 변경 이력 조회 | `GET /histories/{orderNo}`가 특정 발주서의 버전 목록을 반환하는지 검증 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
+| 시나리오                   | 검증 내용                                                                              | 테스트 위치                                                 |
+| -------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 특정 버전 조회             | `GET /histories/{orderNo}/versions/2`가 version 2의 전체 발주서 상태를 반환하는지 검증 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
+| 특정 시점 조회             | `GET /histories/{orderNo}/as-of?at=YYYY-MM-DD`가 한국시간 기준 해당 일자에 유효한 버전을 반환하는지 검증 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
+| 존재하지 않는 버전 조회    | 없는 버전 조회 시 `ORDER_VERSION_NOT_FOUND` 반환 검증                                  | `src/orders/orders.service.spec.ts`                         |
+| 전체 변경 이력 조회        | `GET /histories`가 모든 발주서의 변경 이력을 반환하는지 검증                           | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
+| 특정 발주서 변경 이력 조회 | `GET /histories/{orderNo}`가 특정 발주서의 버전 목록을 반환하는지 검증                 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
 
 ### 변경 비교 테스트
 
-| 시나리오 | 검증 내용 | 테스트 위치 |
-| --- | --- | --- |
-| 버전 간 차이 비교 | `GET /histories/{orderNo}/compare?fromVersion=1&toVersion=2`가 변경된 필드, 이전값, 이후값, 수량 delta, 납기일 deltaDays를 반환하는지 검증 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
-| 비교 대상 버전 없음 | 비교 대상 버전이 없으면 `ORDER_VERSION_COMPARE_TARGET_NOT_FOUND` 반환 검증 | `src/orders/orders.service.spec.ts` |
+| 시나리오            | 검증 내용                                                                                                                                  | 테스트 위치                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| 버전 간 차이 비교   | `GET /histories/{orderNo}/compare?fromVersion=1&toVersion=2`가 변경된 필드, 이전값, 이후값, 수량 delta, 납기일 from/to와 deltaDays를 반환하는지 검증 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
+| 비교 대상 버전 없음 | 비교 대상 버전이 없으면 `ORDER_VERSION_COMPARE_TARGET_NOT_FOUND` 반환 검증                                                                 | `src/orders/orders.service.spec.ts`                         |
 
 ### 통합 시나리오 테스트
 
-| 시나리오 | 검증 내용 | 테스트 위치 |
-| --- | --- | --- |
+| 시나리오    | 검증 내용                                                                                                                 | 테스트 위치            |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
 | 전체 플로우 | 발주 생성 -> 확정 -> 변경요청 -> 반려 -> 재요청 -> 승인 -> 이력조회 -> 특정 버전 조회 -> 특정 시점 조회 -> 버전 비교 검증 | `test/app.e2e-spec.ts` |
-| 반려 플로우 | 반려 시 Order와 History가 변경되지 않고 Request에 `reviewedBy`, `reviewComment`, `reviewedAt`이 기록되는지 검증 | `test/app.e2e-spec.ts` |
+| 반려 플로우 | 반려 시 Order와 History가 변경되지 않고 Request에 `reviewedBy`, `reviewComment`, `reviewedAt`이 기록되는지 검증           | `test/app.e2e-spec.ts` |
 
 ## Prisma
 
