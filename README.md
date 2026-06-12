@@ -161,6 +161,12 @@ Postgres localhost:15433
 npm install
 ```
 
+`build`, `start`, `test`, `test:e2e` 실행 전에는 `prisma generate`가 자동으로 실행됩니다. 수동으로 생성하려면 아래 명령을 사용할 수 있습니다.
+
+```bash
+npm run prisma:generate
+```
+
 환경변수 설정:
 
 ```bash
@@ -366,14 +372,26 @@ npm test -- --runInBand --verbose
 
 ### PostgreSQL e2e 테스트
 
-로컬 PostgreSQL을 사용할 경우:
+Docker Compose DB가 실행 중이면 아래 명령만으로 실행할 수 있습니다.
+
+```bash
+npm run test:e2e
+```
+
+이때 `DATABASE_URL`이 없으면 기본값으로 아래 DB를 사용합니다.
+
+```text
+postgresql://purchase_user:purchase_password@localhost:15433/purchase_order?schema=public
+```
+
+다른 로컬 PostgreSQL을 사용할 경우:
 
 ```bash
 export DATABASE_URL="postgresql://USER:PASSWORD@localhost:15432/purchase_order_test?schema=public"
 npm run test:e2e
 ```
 
-Docker Compose DB를 사용할 경우:
+Docker Compose DB를 명시적으로 지정할 경우:
 
 ```bash
 export DATABASE_URL="postgresql://purchase_user:purchase_password@localhost:15433/purchase_order?schema=public"
