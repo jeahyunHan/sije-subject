@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: purchase-order-postgres
+    environment:
+      POSTGRES_DB: purchase_order
+      POSTGRES_USER: purchase_user
+      POSTGRES_PASSWORD: purchase_password
+    ports:
+      - '15433:5432'
+    volumes:
+      - purchase_order_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U purchase_user -d purchase_order']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+    container_name: purchase-order-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://purchase_user:purchase_password@postgres:5432/purchase_order?schema=public
+    ports:
+      - '3000:3000'
+
+volumes:
+  purchase_order_postgres_data:

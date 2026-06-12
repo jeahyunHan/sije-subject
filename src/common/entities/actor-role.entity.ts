@@ -1,0 +1,5 @@
+export enum ActorRole {
+  BUYER = 'BUYER',
+  SOURCING = 'SOURCING',
+  MANUFACTURER = 'MANUFACTURER',
+}
