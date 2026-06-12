@@ -123,6 +123,11 @@ export const DOMAIN_ERROR_DEFINITIONS: Record<
     stage: 'ORDER_HISTORY_READ',
     message: '요청한 발주서 버전을 찾을 수 없습니다.',
   },
+  [DomainErrorCode.ORDER_HISTORY_INVALID_QUERY]: {
+    status: HttpStatus.BAD_REQUEST,
+    stage: 'ORDER_HISTORY_READ',
+    message: '발주서 이력 조회 조건이 올바르지 않습니다.',
+  },
   [DomainErrorCode.ORDER_VERSION_AS_OF_NOT_FOUND]: {
     status: HttpStatus.NOT_FOUND,
     stage: 'ORDER_HISTORY_READ',

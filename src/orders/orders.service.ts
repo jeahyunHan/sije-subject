@@ -7,6 +7,12 @@ import { ConfirmOrderDto } from './dto/confirm-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderStatus } from './entities/order.entity';
 
+const KST_END_OF_DAY_UTC_HOUR = 14;
+const KST_END_OF_DAY_UTC_MINUTE = 59;
+const KST_END_OF_DAY_UTC_SECOND = 59;
+const KST_END_OF_DAY_UTC_MILLISECOND = 999;
+const KST_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 @Injectable()
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -179,14 +185,7 @@ export class OrdersService {
 
   async findAsOf(orderNo: string, at: string) {
     const normalizedOrderNo = await this.ensureOrderExists(orderNo);
-    const effectiveAt = new Date(at);
-
-    if (!at || Number.isNaN(effectiveAt.getTime())) {
-      throw new DomainException(DomainErrorCode.ORDER_VERSION_AS_OF_NOT_FOUND, {
-        orderNo: normalizedOrderNo,
-        at,
-      });
-    }
+    const effectiveAt = this.parseKstDateEndOfDay(at, normalizedOrderNo);
 
     const history = await this.prisma.history.findFirst({
       where: {
@@ -378,6 +377,49 @@ export class OrdersService {
     }
 
     return parsedVersion;
+  }
+
+  private parseKstDateEndOfDay(at: string, orderNo: string) {
+    const normalizedAt = typeof at === 'string' ? at.trim() : '';
+
+    if (!KST_DATE_PATTERN.test(normalizedAt)) {
+      throw new DomainException(DomainErrorCode.ORDER_HISTORY_INVALID_QUERY, {
+        orderNo,
+        at,
+        expectedFormat: 'YYYY-MM-DD',
+        timezone: 'Asia/Seoul',
+      });
+    }
+
+    const [year, month, day] = normalizedAt.split('-').map(Number);
+    const lastDayOfMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+    if (
+      year < 1000 ||
+      month < 1 ||
+      month > 12 ||
+      day < 1 ||
+      day > lastDayOfMonth
+    ) {
+      throw new DomainException(DomainErrorCode.ORDER_HISTORY_INVALID_QUERY, {
+        orderNo,
+        at,
+        expectedFormat: 'YYYY-MM-DD',
+        timezone: 'Asia/Seoul',
+      });
+    }
+
+    return new Date(
+      Date.UTC(
+        year,
+        month - 1,
+        day,
+        KST_END_OF_DAY_UTC_HOUR,
+        KST_END_OF_DAY_UTC_MINUTE,
+        KST_END_OF_DAY_UTC_SECOND,
+        KST_END_OF_DAY_UTC_MILLISECOND,
+      ),
+    );
   }
 
   private buildVersionDifferences(

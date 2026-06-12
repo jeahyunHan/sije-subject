@@ -626,18 +626,40 @@ describe('OrdersService', () => {
     });
     prisma.history.findFirst.mockResolvedValue(version2);
 
-    await expect(
-      service.findAsOf('PO-2025-0001', '2025-02-16T00:00:00.000Z'),
-    ).resolves.toBe(version2);
+    await expect(service.findAsOf('PO-2025-0001', '2025-02-16')).resolves.toBe(
+      version2,
+    );
     expect(prisma.history.findFirst).toHaveBeenCalledWith({
       where: {
         orderNo: 'PO-2025-0001',
         effectiveAt: {
-          lte: new Date('2025-02-16T00:00:00.000Z'),
+          lte: new Date('2025-02-16T14:59:59.999Z'),
         },
       },
       orderBy: [{ effectiveAt: 'desc' }, { version: 'desc' }],
     });
+  });
+
+  it('rejects an as-of query that is not a KST YYYY-MM-DD date', async () => {
+    prisma.order.findUnique.mockResolvedValue({
+      id: 'order-id',
+      orderNo: 'PO-2025-0001',
+    });
+
+    await expect(
+      service.findAsOf('PO-2025-0001', '2025-02-16T00:00:00.000Z'),
+    ).rejects.toMatchObject({
+      response: {
+        code: DomainErrorCode.ORDER_HISTORY_INVALID_QUERY,
+        details: {
+          orderNo: 'PO-2025-0001',
+          at: '2025-02-16T00:00:00.000Z',
+          expectedFormat: 'YYYY-MM-DD',
+          timezone: 'Asia/Seoul',
+        },
+      },
+    });
+    expect(prisma.history.findFirst).not.toHaveBeenCalled();
   });
 
   it('throws when no order version was effective at a specific time', async () => {
@@ -648,7 +670,7 @@ describe('OrdersService', () => {
     prisma.history.findFirst.mockResolvedValue(null);
 
     await expect(
-      service.findAsOf('PO-2025-0001', '2025-02-01T00:00:00.000Z'),
+      service.findAsOf('PO-2025-0001', '2025-02-01'),
     ).rejects.toMatchObject({
       response: {
         code: DomainErrorCode.ORDER_VERSION_AS_OF_NOT_FOUND,

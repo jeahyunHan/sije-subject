@@ -56,6 +56,7 @@ export const ORDER_HISTORY_FLOW_ERRORS = {
   ],
   getAsOf: [
     DomainErrorCode.ORDER_NOT_FOUND,
+    DomainErrorCode.ORDER_HISTORY_INVALID_QUERY,
     DomainErrorCode.ORDER_VERSION_AS_OF_NOT_FOUND,
   ],
   compareVersions: [

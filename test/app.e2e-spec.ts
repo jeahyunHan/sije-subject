@@ -5,6 +5,7 @@ import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { ActorRole } from '../src/common/entities/actor-role.entity';
+import { DomainErrorCode } from '../src/common/errors';
 import { OrderStatus } from '../src/orders/entities/order.entity';
 import { RequestStatus } from '../src/requests/entities/request.entity';
 
@@ -43,6 +44,15 @@ describe('Purchase order flow (e2e)', () => {
     await prisma.history.deleteMany();
     await prisma.request.deleteMany();
     await prisma.order.deleteMany();
+  }
+
+  function toKstDateString(value: string | Date) {
+    const date = new Date(value);
+    const kstOffsetMilliseconds = 9 * 60 * 60 * 1000;
+
+    return new Date(date.getTime() + kstOffsetMilliseconds)
+      .toISOString()
+      .slice(0, 10);
   }
 
   it('runs the full create, confirm, reject, approve, history read flow against PostgreSQL', async () => {
@@ -281,7 +291,7 @@ describe('Purchase order flow (e2e)', () => {
 
     await request(app.getHttpServer())
       .get(`/histories/${orderNo}/as-of`)
-      .query({ at: approved.body.history.effectiveAt })
+      .query({ at: toKstDateString(approved.body.history.effectiveAt) })
       .expect(200)
       .expect(({ body }) => {
         expect(body).toMatchObject({
@@ -289,6 +299,16 @@ describe('Purchase order flow (e2e)', () => {
           version: 2,
           productName: '티셔츠',
           quantity: 1500,
+        });
+      });
+
+    await request(app.getHttpServer())
+      .get(`/histories/${orderNo}/as-of`)
+      .query({ at: approved.body.history.effectiveAt })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: DomainErrorCode.ORDER_HISTORY_INVALID_QUERY,
         });
       });
 
@@ -308,6 +328,8 @@ describe('Purchase order flow (e2e)', () => {
               delta: 500,
             },
             dueDate: {
+              from: new Date('2025-03-15').toISOString(),
+              to: new Date('2025-03-25').toISOString(),
               deltaDays: 10,
             },
           },

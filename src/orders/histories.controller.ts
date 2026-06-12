@@ -56,13 +56,15 @@ export class HistoriesController {
   @ApiParam({ name: 'orderNo', example: 'PO-2026-000001' })
   @ApiQuery({
     name: 'at',
-    example: '2025-02-16T00:00:00.000Z',
-    description: '조회 기준 시점',
+    example: '2025-02-16',
+    description:
+      '조회 기준 일자. YYYY-MM-DD 형식이며 한국시간(Asia/Seoul) 기준 해당 날짜의 마지막 시점으로 조회',
   })
   @ApiResponse({
     status: 200,
     description: '해당 시점에 유효한 버전 스냅샷 반환',
   })
+  @ApiResponse({ status: 400, description: 'ORDER_HISTORY_INVALID_QUERY' })
   @ApiResponse({ status: 404, description: 'ORDER_VERSION_AS_OF_NOT_FOUND' })
   findAsOf(@Param('orderNo') orderNo: string, @Query('at') at: string) {
     return this.ordersService.findAsOf(orderNo, at);
