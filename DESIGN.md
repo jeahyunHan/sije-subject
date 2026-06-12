@@ -1,0 +1,746 @@
+# 변경 이력 관리 설계
+
+SIJE 백엔드 과제 4 - 의류 생산 발주서 변경 요청 및 이력 관리 설계 문서입니다.
+
+이 문서는 발주서가 생성된 이후 여러 번 변경될 수 있는 상황에서 다음 요구사항을 어떻게 만족하는지 설명합니다.
+
+- 과거 시점 조회: "2025-02-15 10:00:00 당시 이 발주서의 상태는?"
+- 변경 추적: "누가, 언제, 무엇을, 왜 변경했는가?"
+- 비교 기능: "버전 1과 버전 3 사이에 어떤 값이 바뀌었는가?"
+- 감사 보존: 승인된 변경 이력을 완전하게 보존
+
+## 1. 선택한 방식
+
+### 개요
+
+선택한 방식은 **현재 상태 테이블 + 승인 버전별 전체 스냅샷 + 변경 필드 delta 저장** 방식입니다.
+
+구조는 다음과 같습니다.
+
+- `Order`: 발주서의 최신 상태만 저장합니다.
+- `Request`: 주문자가 요청한 변경 내용과 소싱팀의 승인/반려 검토 결과를 저장합니다.
+- `History`: 승인되어 실제 발주서에 반영된 각 버전의 전체 발주서 상태를 스냅샷으로 저장합니다.
+- `History.changedFields`: 해당 버전에서 실제로 바뀐 필드의 `from`, `to` 값을 함께 저장합니다.
+
+즉, `History`는 전체 스냅샷을 저장하되 변경된 필드 정보도 같이 저장합니다. 이 방식은 질문에서 고민했던 "전체 데이터를 저장할 것인가?", "델타만 저장할 것인가?", "둘 다 저장할 것인가?" 중 **둘 다 저장하는 방식**에 해당합니다.
+
+중요한 설계 원칙은 다음과 같습니다.
+
+1. `Order`는 최신 조회를 빠르고 단순하게 하기 위한 현재 상태 테이블입니다.
+2. `History`는 승인된 버전의 감사 및 과거 조회를 위한 불변 스냅샷 테이블입니다.
+3. `Request`에는 변경할 값만 저장하고, 변경 전 현재값은 클라이언트 요청값을 믿지 않습니다.
+4. 변경 승인 시점에는 반드시 DB의 최신 `Order`를 다시 조회해 현재값을 기준으로 검증하고 이력을 생성합니다.
+5. 반려된 변경 요청은 발주서 상태를 바꾸지 않으므로 `History`에 저장하지 않고 `Request`에 검토 결과만 남깁니다.
+
+### 데이터 구조
+
+#### ERD
+
+```mermaid
+erDiagram
+  Order ||--o{ Request : "has change requests"
+  Order ||--o{ History : "has approved versions"
+  Request ||--o| History : "creates approved history"
+
+  Order {
+    uuid id PK
+    string orderNo UK
+    string productName
+    int quantity
+    decimal unitPrice
+    json specification
+    datetime dueDate
+    enum status
+    int version
+    string createdBy
+    datetime createdAt
+    datetime updatedAt
+  }
+
+  Request {
+    uuid id PK
+    string orderNo FK
+    string reason
+    int requestedQuantity
+    datetime requestedDueDate
+    string requestedBy
+    string reviewedBy
+    string reviewComment
+    datetime reviewedAt
+    enum status
+    datetime createdAt
+    datetime updatedAt
+  }
+
+  History {
+    uuid id PK
+    string orderNo FK
+    uuid requestId UK
+    int version
+    string productName
+    int quantity
+    decimal unitPrice
+    json specification
+    datetime dueDate
+    enum status
+    string createdBy
+    json changedFields
+    string approvedBy
+    datetime effectiveAt
+    datetime createdAt
+  }
+```
+
+#### Order
+
+`Order`는 발주서의 현재 최신 상태입니다.
+
+| 필드 | 의미 |
+| --- | --- |
+| `id` | 내부 UUID |
+| `orderNo` | 시스템이 생성하는 발주서 관리번호. 예: `PO-2026-000001` |
+| `productName` | 상품명 |
+| `quantity` | 현재 발주 수량 |
+| `unitPrice` | 단가 |
+| `specification` | 사양 정보 JSON. 현재는 `color`, `size`만 허용 |
+| `dueDate` | 현재 납기일 |
+| `status` | `DRAFT`, `PENDING`, `CONFIRMED`, `IN_PRODUCTION`, `COMPLETED` |
+| `version` | 현재 발주서 버전. 생성 시 0, 확정 시 1 |
+| `createdBy` | 발주 생성자 |
+| `createdAt`, `updatedAt` | 생성/수정 시각 |
+
+#### Request
+
+`Request`는 변경 요청과 검토 결과입니다.
+
+| 필드 | 의미 |
+| --- | --- |
+| `id` | 내부 UUID |
+| `orderNo` | 변경 대상 발주서 관리번호 |
+| `reason` | 변경 사유 |
+| `requestedQuantity` | 변경할 수량. 변경하지 않으면 `null` |
+| `requestedDueDate` | 변경할 납기일. 변경하지 않으면 `null` |
+| `requestedBy` | 변경 요청자 |
+| `reviewedBy` | 승인/반려 처리자 |
+| `reviewComment` | 승인/반려 검토 의견 |
+| `reviewedAt` | 승인/반려 처리 시각 |
+| `status` | `PENDING`, `APPROVED`, `REJECTED` |
+| `createdAt`, `updatedAt` | 생성/수정 시각 |
+
+`Request`에는 `현재 수량`, `현재 납기일` 같은 변경 전 값을 저장하지 않습니다. 변경 요청 생성 시 클라이언트가 가진 현재값은 오래되었거나 조작될 수 있기 때문입니다. 현재값은 항상 DB의 `Order`에서 조회한 값을 기준으로 판단합니다.
+
+#### History
+
+`History`는 승인된 버전의 전체 발주서 스냅샷입니다.
+
+| 필드 | 의미 |
+| --- | --- |
+| `id` | 내부 UUID |
+| `orderNo` | 발주서 관리번호 |
+| `requestId` | 해당 이력을 만든 변경 요청 ID. 초기 확정 이력은 `null` |
+| `version` | 발주서 버전 |
+| `productName`, `quantity`, `unitPrice`, `specification`, `dueDate`, `status` | 해당 버전 당시의 전체 발주서 상태 |
+| `createdBy` | 최초 발주 생성자 |
+| `changedFields` | 해당 버전에서 변경된 필드의 `from`, `to` 값 |
+| `approvedBy` | 확정 또는 승인 처리자 |
+| `effectiveAt` | 해당 버전이 실제로 유효해진 시각 |
+| `createdAt` | History row 생성 시각 |
+
+주요 제약과 인덱스는 다음과 같습니다.
+
+| 대상 | 목적 |
+| --- | --- |
+| `Order.orderNo` unique | 발주서 관리번호 중복 방지 |
+| `Request(orderNo, status)` index | 특정 발주서의 대기 중 변경 요청 조회 |
+| `History(orderNo, version)` unique | 같은 발주서의 동일 버전 중복 방지 |
+| `History(orderNo, effectiveAt)` index | 특정 시점 조회 성능 확보 |
+| `History.requestId` unique | 하나의 승인 요청이 하나의 History만 만들도록 보장 |
+
+### 동작 방식
+
+#### 변경 승인 시 어떻게 저장되는가?
+
+초기 확정과 변경 승인 모두 `History`를 생성합니다.
+
+1. 주문자가 발주서를 생성하면 `Order.version = 0`입니다.
+2. 소싱팀이 발주서를 확정하면 `Order.status = CONFIRMED`, `Order.version = 1`로 바뀌고 `History v1`이 생성됩니다.
+3. 이후 변경 요청이 승인될 때마다 `Order.version`을 1 증가시키고, 변경 후의 전체 `Order` 상태를 `History`에 새 버전으로 저장합니다.
+
+예시는 다음과 같습니다.
+
+| 시점 | Order 최신 상태 | History |
+| --- | --- | --- |
+| 발주 생성 | version 0, PENDING | 없음 |
+| 초기 확정 | version 1, CONFIRMED | v1 생성 |
+| 수량 변경 승인 | version 2, CONFIRMED | v2 생성 |
+| 납기일 변경 승인 | version 3, CONFIRMED | v3 생성 |
+
+승인 처리는 하나의 트랜잭션에서 실행합니다.
+
+1. `Request`가 `PENDING`인지 확인합니다.
+2. `Order`를 DB에서 다시 조회합니다.
+3. 현재 `Order` 기준으로 변경 요청 값의 유효성을 검증합니다.
+4. `Order` 최신값과 version을 업데이트합니다.
+5. `Request.status`를 `APPROVED`로 바꾸고 검토 정보를 기록합니다.
+6. 변경 후 전체 발주서 상태를 `History`에 저장합니다.
+
+이때 `Order` 업데이트, `Request` 승인 처리, `History` 저장은 하나의 트랜잭션입니다. 승인 처리 중 오류가 발생하면 모든 변경사항이 롤백됩니다.
+
+반려는 발주서에 반영되지 않는 결정입니다. 따라서 `History`에는 저장하지 않고 `Request.status = REJECTED`, `reviewedBy`, `reviewComment`, `reviewedAt`만 기록합니다.
+
+#### 특정 시점 조회 시 어떻게 데이터를 가져오는가?
+
+특정 시점 조회는 `History.effectiveAt`을 기준으로 합니다.
+
+`effectiveAt`은 해당 버전이 실제로 발주서의 유효 상태가 된 시각입니다. 초기 확정 또는 변경 승인 처리 시각과 같습니다.
+
+조회 방식은 다음과 같습니다.
+
+1. `orderNo`로 발주서 존재 여부를 확인합니다.
+2. 조회 기준 시각 `at`을 Date로 변환합니다.
+3. `History`에서 `orderNo`가 같고 `effectiveAt <= at`인 row를 찾습니다.
+4. 그중 `effectiveAt desc`, `version desc` 기준 첫 번째 row를 반환합니다.
+
+예를 들어 다음 이력이 있다고 가정합니다.
+
+| version | effectiveAt | quantity | dueDate |
+| --- | --- | --- | --- |
+| 1 | 2025-02-10 09:00:00 | 1000 | 2025-03-15 |
+| 2 | 2025-02-15 10:00:00 | 1500 | 2025-03-15 |
+| 3 | 2025-02-20 10:00:00 | 1500 | 2025-03-25 |
+
+`2025-02-16 00:00:00` 기준 조회 시 `effectiveAt <= 2025-02-16 00:00:00`인 버전 중 가장 최신인 v2를 반환합니다.
+
+#### 변경 비교는 어떻게 수행하는가?
+
+버전 비교는 두 개의 `History` 스냅샷을 가져와 필드별로 비교합니다.
+
+비교 대상 필드는 다음과 같습니다.
+
+- `quantity`
+- `productName`
+- `unitPrice`
+- `specification`
+- `dueDate`
+- `status`
+
+비교 결과는 변경된 필드만 반환합니다.
+
+예시:
+
+```json
+{
+  "orderNo": "PO-2026-000001",
+  "fromVersion": 1,
+  "toVersion": 3,
+  "differences": {
+    "quantity": {
+      "from": 1000,
+      "to": 1500,
+      "delta": 500
+    },
+    "dueDate": {
+      "from": "2025-03-15T00:00:00.000Z",
+      "to": "2025-03-25T00:00:00.000Z",
+      "deltaDays": 10
+    }
+  }
+}
+```
+
+수량은 `delta`, 납기일은 `deltaDays`를 함께 제공합니다.
+
+## 2. 의사결정 과정
+
+### 고려했던 대안들
+
+#### 대안 1. History에 전체 스냅샷만 저장
+
+변경이 승인될 때마다 발주서 전체 데이터를 `History`에 저장하는 방식입니다.
+
+장점:
+
+- 특정 버전 조회가 매우 단순합니다.
+- 특정 시점 조회도 가장 가까운 스냅샷 하나만 찾으면 됩니다.
+- 과거 상태 복원이 쉽습니다.
+- 감사 요구사항에 강합니다.
+
+단점:
+
+- 변경된 필드만 빠르게 확인하려면 스냅샷 간 비교 로직이 필요합니다.
+- 변경된 값만 저장하는 방식보다 저장 공간을 더 사용합니다.
+
+#### 대안 2. 변경된 내용, 즉 delta만 저장
+
+예를 들어 수량이 `1000 -> 1500`으로 바뀌었다면 변경된 필드만 저장하는 방식입니다.
+
+예시:
+
+```json
+{
+  "version": 2,
+  "changes": {
+    "quantity": {
+      "from": 1000,
+      "to": 1500
+    }
+  }
+}
+```
+
+장점:
+
+- 저장 공간이 적습니다.
+- "무엇이 바뀌었는가?"를 바로 알 수 있습니다.
+- 변경 사유, 변경자, 변경 시각 중심의 감사 로그를 만들기 쉽습니다.
+
+단점:
+
+- 특정 버전의 전체 발주서 상태를 조회하려면 최초 상태부터 delta를 순서대로 적용해야 합니다.
+- 특정 시점 조회도 매번 상태 재구성이 필요합니다.
+- 중간 delta가 누락되거나 순서가 꼬이면 과거 상태 복원이 어려워집니다.
+- 구현 복잡도가 올라갑니다.
+
+#### 대안 3. 기존 Order 테이블에 version을 추가하고 여러 row를 저장
+
+`orders` 테이블에 같은 `orderNo`를 가진 여러 row를 version별로 저장하는 방식입니다.
+
+장점:
+
+- 별도 History 테이블 없이 버전별 발주서를 저장할 수 있습니다.
+- 버전 조회가 직관적입니다.
+
+단점:
+
+- 최신 발주서와 과거 발주서를 같은 테이블에서 구분해야 합니다.
+- `orderNo` unique 제약을 그대로 사용할 수 없습니다.
+- 발주서 최신 상태 조회, 변경 요청 관계, 생산자 읽기 모델이 복잡해집니다.
+- 현재 상태와 이력 상태의 책임이 섞입니다.
+
+#### 대안 4. 이벤트 스트림 방식
+
+`OrderCreated`, `OrderConfirmed`, `ChangeRequested`, `ChangeApproved` 같은 이벤트를 순서대로 저장하고, 조회 시 이벤트를 재생해서 상태를 만드는 방식입니다.
+
+장점:
+
+- 도메인에서 발생한 모든 사건을 매우 상세히 기록할 수 있습니다.
+- 감사와 추적에는 강력합니다.
+- 이벤트 기반 확장에 유리합니다.
+
+단점:
+
+- 현재 과제 범위에 비해 구현 복잡도가 큽니다.
+- 특정 버전 및 특정 시점 조회를 위해 projection 또는 replay 전략이 필요합니다.
+- 대용량 처리, 캐싱, 이벤트 재처리 같은 추가 설계가 필요해질 수 있습니다.
+
+### 최종 선택 이유
+
+최종 선택은 **Order 최신 상태 + History 전체 스냅샷 + changedFields delta**입니다.
+
+선택 이유는 다음과 같습니다.
+
+#### 우리 도메인의 특성상 최신 발주서 조회와 과거 이력 조회가 모두 중요합니다.
+
+생산자는 항상 최신 확정 발주서 기준으로 생산해야 하므로 최신 상태 조회가 단순해야 합니다. 이를 위해 `Order`는 현재 상태만 갖습니다.
+
+반면 주문자와 소싱팀은 과거 변경 내역, 특정 버전, 특정 시점 상태, 버전 간 차이를 확인해야 합니다. 이를 위해 `History`는 승인된 버전별 전체 상태를 보존합니다.
+
+#### 요구사항 중 특정 버전 조회와 특정 시점 조회가 중요합니다.
+
+요구사항에는 다음 조회가 포함됩니다.
+
+- 특정 버전 조회
+- 특정 시점 조회
+- 변경 이력 조회
+- 버전 간 비교
+
+delta만 저장하면 특정 버전이나 특정 시점의 전체 상태를 만들기 위해 매번 재구성이 필요합니다. 하지만 전체 스냅샷을 저장하면 `History` 한 row만 조회하면 당시 전체 발주서 상태를 반환할 수 있습니다.
+
+#### 변경 비교도 필요하므로 changedFields를 함께 저장합니다.
+
+전체 스냅샷만 있으면 버전 간 비교는 가능하지만 매번 전체 필드를 비교해야 합니다. 그래서 승인 시점에 `changedFields`도 함께 저장합니다.
+
+`changedFields`는 다음 용도로 사용됩니다.
+
+- 변경 이력 목록에서 어떤 필드가 바뀌었는지 빠르게 표시
+- 감사 로그에서 "무엇이 바뀌었는가?"를 명확히 표현
+- 변경 요청 승인 시 DB의 현재값 기준으로 `from`, 요청값 기준으로 `to` 저장
+
+단, 버전 비교 API는 두 `History` 스냅샷을 직접 비교합니다. 이렇게 하면 `changedFields` 누락이나 추가 필드 확장에도 비교 결과를 안정적으로 계산할 수 있습니다.
+
+#### 구현 복잡도와 효과의 균형이 좋습니다.
+
+이번 과제에서는 대용량 데이터 처리, 동시성 제어, 분산 시스템, 캐싱 전략은 평가 대상이 아닙니다. 따라서 이벤트 스트림이나 복잡한 projection보다, 요구사항을 명확하게 만족하고 이해하기 쉬운 테이블 구조가 더 적합합니다.
+
+전체 스냅샷 + changedFields 방식은 다음 균형을 가집니다.
+
+- 구현은 단순합니다.
+- 과거 조회는 빠르고 명확합니다.
+- 변경 비교도 가능합니다.
+- 감사 데이터가 충분히 남습니다.
+- 평가자가 설계 의도를 쉽게 검토할 수 있습니다.
+
+#### 클라이언트가 보내는 현재값을 신뢰하지 않는 구조입니다.
+
+초기 설계 검토 중 `Request`에 현재 수량, 현재 납기일을 같이 저장할지 고민했습니다. 최종적으로는 제거했습니다.
+
+이유는 다음과 같습니다.
+
+- 클라이언트 화면의 현재값은 이미 오래된 값일 수 있습니다.
+- 사용자가 임의로 현재값을 조작해서 보낼 수 있습니다.
+- 동일 발주서에 `PENDING` 요청이 있으면 새 요청을 막고 있지만, 그래도 승인 시점의 진짜 기준은 DB의 `Order`입니다.
+- 승인 시점에는 DB에서 `Order`를 다시 조회해 현재값을 기준으로 `changedFields.from`을 만들어야 신뢰도가 높습니다.
+
+따라서 `Request`는 요청자가 바꾸고 싶은 목표값만 저장하고, 변경 전 현재값은 승인 처리 시점에 DB에서 조회합니다.
+
+## 3. 구현 상세
+
+### 핵심 로직 설명
+
+#### 발주서 생성
+
+발주서 생성은 주문자만 가능합니다. `orderNo`는 클라이언트 입력을 받지 않고 서버에서 생성합니다.
+
+관리번호 규칙은 다음과 같습니다.
+
+```text
+PO-{YYYY}-{6자리 순번}
+예: PO-2026-000001
+```
+
+생성 시 `Order.version = 0`입니다. 아직 소싱팀이 확정하지 않은 상태이므로 `History`는 생성하지 않습니다.
+
+#### 발주서 초기 확정
+
+소싱팀이 `PENDING` 발주서를 확정하면 다음 작업을 트랜잭션으로 수행합니다.
+
+```ts
+const updatedOrder = await tx.order.update({
+  where: { orderNo },
+  data: {
+    status: PrismaOrderStatus.CONFIRMED,
+    version: 1,
+  },
+});
+
+const history = await tx.history.create({
+  data: {
+    orderNo: updatedOrder.orderNo,
+    requestId: null,
+    version: updatedOrder.version,
+    productName: updatedOrder.productName,
+    quantity: updatedOrder.quantity,
+    unitPrice: updatedOrder.unitPrice,
+    specification: updatedOrder.specification,
+    dueDate: updatedOrder.dueDate,
+    status: updatedOrder.status,
+    createdBy: updatedOrder.createdBy,
+    changedFields: {
+      status: {
+        from: order.status,
+        to: PrismaOrderStatus.CONFIRMED,
+      },
+    },
+    approvedBy: confirmedBy,
+    effectiveAt,
+  },
+});
+```
+
+이때 생성되는 `History v1`이 최초로 조회 가능한 확정 버전입니다.
+
+#### 변경 요청 생성
+
+변경 요청 생성 시 `Request`에는 변경할 값만 저장합니다.
+
+```ts
+return this.prisma.request.create({
+  data: {
+    orderNo: data.orderNo,
+    reason: data.reason,
+    requestedQuantity: data.requestedQuantity ?? null,
+    requestedDueDate: data.requestedDueDate ?? null,
+    requestedBy: data.requestedBy,
+    status: PrismaRequestStatus.PENDING,
+  },
+});
+```
+
+생성 규칙은 다음과 같습니다.
+
+- 주문자(`BUYER`)만 생성할 수 있습니다.
+- 발주서가 존재해야 합니다.
+- 발주서 상태가 `CONFIRMED` 또는 `IN_PRODUCTION`이어야 합니다.
+- `COMPLETED` 상태는 변경 요청할 수 없습니다.
+- 동일 발주서에 `PENDING` 변경 요청이 있으면 생성할 수 없습니다.
+- 변경 항목은 수량 또는 납기일 중 1개 이상이어야 합니다.
+- 요청 수량은 현재 DB 수량보다 커야 합니다.
+- 요청 납기일은 현재 DB 납기일보다 최소 정책 일수 이상 연장되어야 합니다.
+
+#### 변경 요청 승인
+
+승인 API는 `PATCH /requests/{orderNo}/approve`입니다. 외부 API에서는 `orderNo`를 받아 해당 발주서의 `PENDING` 변경 요청을 찾습니다.
+
+내부 처리 흐름은 다음과 같습니다.
+
+```ts
+return await this.prisma.$transaction(async (tx) => {
+  const request = await tx.request.findUnique({ where: { id } });
+  this.ensureRequestCanBeReviewed(request);
+
+  const order = await tx.order.findUnique({
+    where: { orderNo: request.orderNo },
+  });
+
+  this.validateRequestedChanges(request, order);
+
+  const nextVersion = order.version + 1;
+  const changedFields = this.buildChangedFields(request, order);
+  const reviewedAt = new Date();
+
+  const updatedOrder = await tx.order.update({
+    where: { orderNo: request.orderNo },
+    data: {
+      ...(request.requestedQuantity !== null
+        ? { quantity: request.requestedQuantity }
+        : {}),
+      ...(request.requestedDueDate !== null
+        ? { dueDate: request.requestedDueDate }
+        : {}),
+      version: nextVersion,
+    },
+  });
+
+  const updatedRequest = await tx.request.update({
+    where: { id },
+    data: {
+      status: PrismaRequestStatus.APPROVED,
+      reviewedBy,
+      reviewComment,
+      reviewedAt,
+    },
+  });
+
+  const history = await tx.history.create({
+    data: {
+      orderNo: updatedOrder.orderNo,
+      requestId: updatedRequest.id,
+      version: updatedOrder.version,
+      productName: updatedOrder.productName,
+      quantity: updatedOrder.quantity,
+      unitPrice: updatedOrder.unitPrice,
+      specification: updatedOrder.specification,
+      dueDate: updatedOrder.dueDate,
+      status: updatedOrder.status,
+      createdBy: updatedOrder.createdBy,
+      changedFields,
+      approvedBy: reviewedBy,
+      effectiveAt: reviewedAt,
+    },
+  });
+
+  return { order: updatedOrder, request: updatedRequest, history };
+});
+```
+
+핵심은 `Order` 업데이트, `Request` 승인 처리, `History` 저장이 모두 같은 트랜잭션 안에 있다는 점입니다. `History` 생성 중 unique 제약 오류 등 예외가 발생하면 `Order`와 `Request` 변경도 롤백됩니다.
+
+#### 변경 필드 계산
+
+`changedFields`는 승인 시점에 DB에서 조회한 현재 `Order`를 기준으로 생성합니다.
+
+```ts
+const changedFields = {};
+
+if (request.requestedQuantity !== null) {
+  changedFields.quantity = {
+    from: order.quantity,
+    to: request.requestedQuantity,
+  };
+}
+
+if (request.requestedDueDate !== null) {
+  changedFields.dueDate = {
+    from: order.dueDate.toISOString(),
+    to: request.requestedDueDate.toISOString(),
+  };
+}
+```
+
+이 방식은 클라이언트가 보낸 현재값을 믿지 않고 DB의 현재 발주서 상태를 기준으로 이력을 생성합니다.
+
+#### 변경 요청 반려
+
+반려는 발주서 상태를 변경하지 않습니다.
+
+```ts
+return this.prisma.request.update({
+  where: { id },
+  data: {
+    status: PrismaRequestStatus.REJECTED,
+    reviewedBy,
+    reviewComment,
+    reviewedAt: new Date(),
+  },
+});
+```
+
+반려 시 `History`를 만들지 않는 이유는 발주서의 유효 버전이 바뀌지 않았기 때문입니다. 대신 `Request`에 누가, 언제, 어떤 의견으로 반려했는지 남겨 감사 요구사항을 충족합니다.
+
+#### 변경 이력 조회
+
+전체 변경 이력 조회:
+
+```ts
+return this.prisma.history.findMany({
+  orderBy: [
+    { effectiveAt: 'desc' },
+    { createdAt: 'desc' },
+    { orderNo: 'asc' },
+    { version: 'desc' },
+  ],
+});
+```
+
+특정 발주서 변경 이력 조회:
+
+```ts
+return this.prisma.history.findMany({
+  where: { orderNo },
+  orderBy: { version: 'asc' },
+});
+```
+
+#### 특정 버전 조회
+
+특정 버전 조회는 `History(orderNo, version)` unique 제약을 사용합니다.
+
+```ts
+const history = await this.prisma.history.findUnique({
+  where: {
+    orderNo_version: {
+      orderNo,
+      version,
+    },
+  },
+});
+```
+
+#### 특정 시점 조회
+
+특정 시점 조회는 해당 시점보다 먼저 유효해진 최신 버전을 찾습니다.
+
+```ts
+const history = await this.prisma.history.findFirst({
+  where: {
+    orderNo,
+    effectiveAt: {
+      lte: effectiveAt,
+    },
+  },
+  orderBy: [{ effectiveAt: 'desc' }, { version: 'desc' }],
+});
+```
+
+#### 버전 간 비교
+
+두 버전의 `History`를 조회한 뒤 필드별로 비교합니다.
+
+```ts
+const histories = await this.prisma.history.findMany({
+  where: {
+    orderNo,
+    version: {
+      in: [fromVersion, toVersion],
+    },
+  },
+});
+
+return {
+  orderNo,
+  fromVersion,
+  toVersion,
+  differences: this.buildVersionDifferences(from, to),
+};
+```
+
+비교 시 Date는 ISO 문자열로 정규화하고, JSON 객체는 key 순서를 정렬해 비교합니다. 이렇게 하면 `{ color, size }` 순서 차이 같은 표현상의 차이로 잘못된 변경이 잡히지 않습니다.
+
+### 예외 상황 처리
+
+#### 발주서 생성 및 확정
+
+| 상황 | 에러 코드 | 설명 |
+| --- | --- | --- |
+| 주문자가 아닌 사용자가 발주 생성 | `ORDER_CREATE_FORBIDDEN` | `actorRole`이 `BUYER`가 아님 |
+| 발주 생성 payload 오류 | `ORDER_CREATE_INVALID_PAYLOAD` | 상품명, 수량, 단가, 사양, 납기일 등 오류 |
+| 발주서 관리번호 중복 | `ORDER_ALREADY_EXISTS` | unique constraint 오류를 domain error로 변환 |
+| 존재하지 않는 발주서 조회/확정 | `ORDER_NOT_FOUND` | `orderNo`에 해당하는 발주서 없음 |
+| 소싱팀이 아닌 사용자가 확정 | `ORDER_CONFIRM_FORBIDDEN` | `actorRole`이 `SOURCING`이 아님 |
+| `PENDING`이 아닌 발주서 확정 | `ORDER_CONFIRM_INVALID_STATUS` | 확정 가능한 상태가 아님 |
+
+#### 변경 요청 생성
+
+| 상황 | 에러 코드 | 설명 |
+| --- | --- | --- |
+| 주문자가 아닌 사용자가 변경 요청 | `CHANGE_REQUEST_CREATE_FORBIDDEN` | `actorRole`이 `BUYER`가 아님 |
+| 변경 항목 없음 | `CHANGE_REQUEST_EMPTY_CHANGES` | 수량/납기일 모두 없음 |
+| 변경 값 형식 오류 | `CHANGE_REQUEST_INVALID_CHANGES` | 수량, 납기일, 사유 등 값 오류 |
+| 발주서가 확정/생산중 상태가 아님 | `ORDER_NOT_CHANGEABLE` | 변경 요청 가능한 상태가 아님 |
+| 발주서가 완료 상태 | `ORDER_COMPLETED_NOT_CHANGEABLE` | 완료 발주서는 변경 불가 |
+| 대기 중 변경 요청 존재 | `CHANGE_REQUEST_PENDING_EXISTS` | 같은 발주서에 `PENDING` 요청 존재 |
+| 요청 수량이 현재 수량 이하 | `CHANGE_REQUEST_QUANTITY_NOT_INCREASED` | 수량 증가 정책 위반 |
+| 요청 납기일이 최소 연장 일수 미만 | `CHANGE_REQUEST_DUE_DATE_TOO_SOON` | 납기일 정책 위반 |
+
+#### 변경 요청 승인/반려
+
+| 상황 | 에러 코드 | 설명 |
+| --- | --- | --- |
+| 해당 발주서의 대기 요청 없음 | `CHANGE_REQUEST_PENDING_NOT_FOUND` | `orderNo + PENDING` 요청 없음 |
+| 소싱팀이 아닌 사용자가 처리 | `CHANGE_REQUEST_REVIEW_FORBIDDEN` | `actorRole`이 `SOURCING`이 아님 |
+| 검토 의견 없음 | `CHANGE_REQUEST_REVIEW_COMMENT_REQUIRED` | 승인/반려 시 검토 의견 필수 |
+| 이미 승인/반려된 요청 처리 | `CHANGE_REQUEST_ALREADY_CLOSED` | `PENDING` 상태가 아님 |
+| 승인 트랜잭션 중 예상 외 오류 | `APPROVAL_TRANSACTION_FAILED` | `Order`, `Request`, `History` 변경 롤백 |
+
+#### 이력 조회 및 비교
+
+| 상황 | 에러 코드 | 설명 |
+| --- | --- | --- |
+| 존재하지 않는 버전 조회 | `ORDER_VERSION_NOT_FOUND` | `orderNo + version` History 없음 |
+| 특정 시점에 유효한 버전 없음 | `ORDER_VERSION_AS_OF_NOT_FOUND` | 해당 시점 이전의 History 없음 |
+| 비교 대상 버전 없음 | `ORDER_VERSION_COMPARE_TARGET_NOT_FOUND` | from/to 중 하나 이상 없음 |
+
+### 테스트와 검증
+
+구현은 다음 테스트로 검증합니다.
+
+| 구분 | 검증 내용 |
+| --- | --- |
+| 변경 저장 | 승인 시 `Order.version` 증가, `Request.status = APPROVED`, `History` 새 버전 생성 |
+| 여러 필드 동시 변경 | 수량과 납기일을 동시에 변경해도 하나의 승인 요청이 하나의 버전으로 저장 |
+| 이력 조회 | 특정 버전, 특정 시점, 전체 이력, 특정 발주서 이력 조회 |
+| 변경 비교 | 두 버전 간 변경 필드와 `delta`, `deltaDays` 반환 |
+| 반려 | `Order`와 `History`는 변경하지 않고 `Request`에 검토 결과만 저장 |
+| 트랜잭션 롤백 | History 생성 실패 시 Order/Request 변경사항 롤백 |
+| 통합 시나리오 | 생성 -> 확정 -> 변경요청 -> 반려 -> 재요청 -> 승인 -> 이력조회 -> 비교 |
+
+실행 명령:
+
+```bash
+npm test -- --runInBand --verbose
+```
+
+PostgreSQL e2e:
+
+```bash
+export DATABASE_URL="postgresql://purchase_user:purchase_password@localhost:15433/purchase_order?schema=public"
+npm run test:e2e
+```
+
+Docker 배포 검증:
+
+```bash
+git clone https://github.com/jeahyunHan/sije-subject.git
+cd sije-subject
+docker compose up --build
+```
