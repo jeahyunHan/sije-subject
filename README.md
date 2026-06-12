@@ -86,12 +86,7 @@
 | `approvedBy` | 확정 또는 승인 처리자 |
 | `effectiveAt` | 해당 버전이 유효해진 시각 |
 
-## 과제 제출용 실행 방법
-
-이 프로젝트는 **Public GitHub Repository + Docker Compose** 방식으로 실행하는 것을 기본 제출 방식으로 합니다.
-
-평가자는 별도의 Node.js 또는 PostgreSQL 설치 없이 Docker만 설치된 환경에서 아래 순서로 실행할 수 있습니다.
-Docker Hub 이미지를 별도로 pull하지 않고, 저장소의 `Dockerfile`과 `docker-compose.yml`로 로컬에서 이미지를 빌드합니다.
+## 실행 방법
 
 ### 1. 저장소 clone
 
