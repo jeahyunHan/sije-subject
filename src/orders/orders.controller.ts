@@ -28,7 +28,7 @@ export class OrdersController {
 
   @Get(':orderNo')
   @ApiOperation({ summary: '발주서 단건 조회' })
-  @ApiParam({ name: 'orderNo', example: 'PO-2025-0001' })
+  @ApiParam({ name: 'orderNo', example: 'PO-2026-000001' })
   @ApiResponse({ status: 200, description: '최신 발주서 반환' })
   @ApiResponse({ status: 404, description: 'ORDER_NOT_FOUND' })
   findOne(@Param('orderNo') orderNo: string) {
@@ -37,7 +37,7 @@ export class OrdersController {
 
   @Patch(':orderNo/confirm')
   @ApiOperation({ summary: '발주서 초기 확정' })
-  @ApiParam({ name: 'orderNo', example: 'PO-2025-0001' })
+  @ApiParam({ name: 'orderNo', example: 'PO-2026-000001' })
   @ApiResponse({
     status: 200,
     description: 'CONFIRMED 처리 및 History v1 생성',

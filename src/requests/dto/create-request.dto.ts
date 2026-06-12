@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ActorRole } from '../../common/entities/actor-role.entity';
 
 export class CreateRequestDto {
-  @ApiProperty({ example: 'PO-2025-0001', description: '발주서 관리번호' })
+  @ApiProperty({ example: 'PO-2026-000001', description: '발주서 관리번호' })
   orderNo: string;
 
   @ApiProperty({ example: '수량 증가 및 납기 연장', description: '변경 사유' })

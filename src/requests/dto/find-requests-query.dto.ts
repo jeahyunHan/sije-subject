@@ -3,7 +3,7 @@ import { RequestStatus } from '../entities/request.entity';
 
 export class FindRequestsQueryDto {
   @ApiPropertyOptional({
-    example: 'PO-2025-0001',
+    example: 'PO-2026-000001',
     description: '발주서 관리번호 필터',
   })
   orderNo?: string;

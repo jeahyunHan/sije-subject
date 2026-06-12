@@ -39,7 +39,7 @@ export class RequestsController {
 
   @Get()
   @ApiOperation({ summary: '변경 요청 목록 조회' })
-  @ApiQuery({ name: 'orderNo', required: false, example: 'PO-2025-0001' })
+  @ApiQuery({ name: 'orderNo', required: false, example: 'PO-2026-000001' })
   @ApiQuery({
     name: 'status',
     required: false,
