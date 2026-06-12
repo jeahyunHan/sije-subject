@@ -13,8 +13,8 @@
 - `History`: 승인되어 실제 발주서에 반영된 각 버전의 전체 발주서 상태를 스냅샷으로 저장합니다.
 - `History.changedFields`: 해당 버전에서 실제로 바뀐 필드의 `from`, `to` 값을 함께 저장합니다.
 
-`History`는 전체 스냅샷을 저장하되 변경된 필드 정보도 같이 저장합니다. 이 방식은 질문에서 고민했던 "전체 데이터를 저장할 것인가?", "델타만 저장할 것인가?", "둘 다 저장할 것인가?" 중 둘 다 저장하는 방식에 해당합니다.
-둘 다 저장하는 방식을 택한 이유는
+`History`는 전체 스냅샷을 저장하되 변경된 필드 정보도 같이 저장합니다.
+이 방식은 질문에서 고민했던 "전체 데이터를 저장할 것인가?", "델타만 저장할 것인가?", "둘 다 저장할 것인가?" 중 둘 다 저장하는 방식에 해당합니다. 둘 다 저장하는 방식을 택한 이유는
 
 1. 프로젝트 평가 범위 제외 사항 중 대용량 데이터 처리 (수십만 건 이상) 에 대한 사항을 고려하였습니다. 스냅샷과 델타 데이터의 저장으로 용량에 대한 문제보다 중요한 핵심 기능인 이력관리를 위해 해당 방법을 택했습니다.
 2. 변경 이력 조회 핵심 기능 중 '각 변경 시점의 발주서 전체 상태 또는 변경된 필드 정보를 확인할 수 있어야 함'의 요구사항에 대하여 수량 및 납기일 뿐이 아니라 완전한 이력 보존을 위해 발주서의 모든 데이터가 저장되어야 한다고 생각했습니다.
@@ -90,63 +90,63 @@ erDiagram
 
 `Order`는 발주서의 현재 최신 상태입니다.
 
-| 필드                     | 의미                                                          |
-| ------------------------ | ------------------------------------------------------------- |
-| `id`                     | 내부 UUID                                                     |
-| `orderNo`                | 시스템이 생성하는 발주서 관리번호. 예: `PO-2026-000001`       |
-| `productName`            | 상품명                                                        |
-| `quantity`               | 현재 발주 수량                                                |
-| `unitPrice`              | 단가                                                          |
-| `specification`          | 사양 정보 JSON. 현재는 `color`, `size`만 허용                 |
+| 필드                     | 의미                                                                 |
+| ------------------------ | -------------------------------------------------------------------- |
+| `id`                     | 내부 UUID                                                            |
+| `orderNo`                | 시스템이 생성하는 발주서 관리번호. 예: `PO-2026-000001`              |
+| `productName`            | 상품명                                                               |
+| `quantity`               | 현재 발주 수량                                                       |
+| `unitPrice`              | 단가                                                                 |
+| `specification`          | 사양 정보 JSON. 현재는 `color`, `size`만 허용                        |
 | `dueDate`                | 현재 납기일. 업무상 날짜 값이며 API에서는 `YYYY-MM-DD` 형식으로 받음 |
-| `status`                 | `DRAFT`, `PENDING`, `CONFIRMED`, `IN_PRODUCTION`, `COMPLETED` |
-| `version`                | 현재 발주서 버전. 생성 시 0, 확정 시 1                        |
-| `createdBy`              | 발주 생성자                                                   |
-| `createdAt`, `updatedAt` | 생성/수정 시각                                                |
+| `status`                 | `DRAFT`, `PENDING`, `CONFIRMED`, `IN_PRODUCTION`, `COMPLETED`        |
+| `version`                | 현재 발주서 버전. 생성 시 0, 확정 시 1                               |
+| `createdBy`              | 발주 생성자                                                          |
+| `createdAt`, `updatedAt` | 생성/수정 시각                                                       |
 
 #### Request
 
 `Request`는 변경 요청과 검토 결과입니다.
 
-| 필드                     | 의미                                  |
-| ------------------------ | ------------------------------------- |
-| `id`                     | 내부 UUID                             |
-| `orderNo`                | 변경 대상 발주서 관리번호             |
-| `reason`                 | 변경 사유                             |
-| `requestedQuantity`      | 변경할 수량. 변경하지 않으면 `null`   |
+| 필드                     | 의미                                                                  |
+| ------------------------ | --------------------------------------------------------------------- |
+| `id`                     | 내부 UUID                                                             |
+| `orderNo`                | 변경 대상 발주서 관리번호                                             |
+| `reason`                 | 변경 사유                                                             |
+| `requestedQuantity`      | 변경할 수량. 변경하지 않으면 `null`                                   |
 | `requestedDueDate`       | 변경할 납기일. `YYYY-MM-DD` 형식의 날짜 값이며 변경하지 않으면 `null` |
-| `requestedBy`            | 변경 요청자                           |
-| `reviewedBy`             | 승인/반려 처리자                      |
-| `reviewComment`          | 승인/반려 검토 의견                   |
-| `reviewedAt`             | 승인/반려 처리 시각                   |
-| `status`                 | `PENDING`, `APPROVED`, `REJECTED`     |
-| `createdAt`, `updatedAt` | 생성/수정 시각                        |
+| `requestedBy`            | 변경 요청자                                                           |
+| `reviewedBy`             | 승인/반려 처리자                                                      |
+| `reviewComment`          | 승인/반려 검토 의견                                                   |
+| `reviewedAt`             | 승인/반려 처리 시각                                                   |
+| `status`                 | `PENDING`, `APPROVED`, `REJECTED`                                     |
+| `createdAt`, `updatedAt` | 생성/수정 시각                                                        |
 
 #### History
 
 `History`는 승인된 버전의 전체 발주서 스냅샷입니다.
 
-| 필드                                                                         | 의미                                                   |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `id`                                                                         | 내부 UUID                                              |
-| `orderNo`                                                                    | 발주서 관리번호                                        |
-| `requestId`                                                                  | 해당 이력을 만든 변경 요청 ID. 초기 확정 이력은 `null` |
-| `version`                                                                    | 발주서 버전                                            |
-| `productName`, `quantity`, `unitPrice`, `specification`, `dueDate`, `status` | 해당 버전 당시의 전체 발주서 상태                      |
-| `createdBy`                                                                  | 최초 발주 생성자                                       |
-| `changedFields`                                                              | 해당 버전에서 변경된 필드의 `from`, `to` 값            |
-| `approvedBy`                                                                 | 확정 또는 승인 처리자                                  |
+| 필드                                                                         | 의미                                                          |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `id`                                                                         | 내부 UUID                                                     |
+| `orderNo`                                                                    | 발주서 관리번호                                               |
+| `requestId`                                                                  | 해당 이력을 만든 변경 요청 ID. 초기 확정 이력은 `null`        |
+| `version`                                                                    | 발주서 버전                                                   |
+| `productName`, `quantity`, `unitPrice`, `specification`, `dueDate`, `status` | 해당 버전 당시의 전체 발주서 상태                             |
+| `createdBy`                                                                  | 최초 발주 생성자                                              |
+| `changedFields`                                                              | 해당 버전에서 변경된 필드의 `from`, `to` 값                   |
+| `approvedBy`                                                                 | 확정 또는 승인 처리자                                         |
 | `effectiveAt`                                                                | 해당 버전이 실제로 유효해진 시각. 서버가 생성하는 이벤트 시각 |
-| `createdAt`                                                                  | History row 생성 시각                                  |
+| `createdAt`                                                                  | History row 생성 시각                                         |
 
 #### 날짜와 시간 처리 기준
 
 이 설계에서는 날짜 성격의 값과 이벤트 시각 성격의 값을 구분합니다.
 
-| 구분 | 대상 필드 | 의미 | 입력/생성 기준 |
-| --- | --- | --- | --- |
-| 업무 날짜 | `dueDate`, `requestedDueDate` | 납품이 필요한 날짜 | API에서 `YYYY-MM-DD` 형식으로 입력 |
-| 이벤트 시각 | `createdAt`, `updatedAt`, `reviewedAt`, `effectiveAt` | 생성, 수정, 검토, 버전 유효화가 실제 발생한 시각 | 서버에서 생성 |
+| 구분        | 대상 필드                                             | 의미                                             | 입력/생성 기준                     |
+| ----------- | ----------------------------------------------------- | ------------------------------------------------ | ---------------------------------- |
+| 업무 날짜   | `dueDate`, `requestedDueDate`                         | 납품이 필요한 날짜                               | API에서 `YYYY-MM-DD` 형식으로 입력 |
+| 이벤트 시각 | `createdAt`, `updatedAt`, `reviewedAt`, `effectiveAt` | 생성, 수정, 검토, 버전 유효화가 실제 발생한 시각 | 서버에서 생성                      |
 
 `dueDate`와 `requestedDueDate`는 시간대가 중요한 이벤트 시각이 아니라 업무상 날짜입니다. 다만 Prisma/PostgreSQL에서는 `DateTime`으로 저장하므로 내부적으로는 Date 객체로 다룹니다. API 입력은 `2025-03-15`처럼 날짜만 받는 것을 기준으로 합니다.
 
@@ -264,7 +264,20 @@ erDiagram
 
 ### 고려했던 대안들
 
-#### 대안 1. 기존 Order 테이블에 version을 추가하고 여러 row를 저장할 것 인가??
+#### 대안 1. History에 전체 스냅샷만 저장
+
+변경이 승인될 때마다 발주서 전체 데이터를 `History`에 저장하는 방식입니다.
+
+- 특정 버전 조회가 매우 단순합니다.
+- 특정 시점 조회도 가장 가까운 스냅샷 하나를 찾으면 조회하면 됩니다.
+- 과거 상태 복원이 쉬워집니다.
+
+선택하지 않은 이유
+
+- 변경된 필드만 빠르게 확인하기 위해서는 스냅샷 간 비교하는 로직이 필요합니다.
+- 변경된 값만 저장하는 방식보다 저장 공간을 더 사용합니다.
+
+#### 대안 2. 기존 Order 테이블에 version을 추가하고 여러 row를 저장할 것 인가??
 
 `orders` 테이블에 같은 `orderNo`를 가진 여러 row를 version별로 저장하는 방식입니다.
 
@@ -278,7 +291,7 @@ erDiagram
 - 발주서 최신 상태 조회, 변경 요청 관계, 생산자 읽기 모델이 복잡해집니다.
 - 현재 상태와 이력 상태의 데이터가 섞이기 때문에 일관성이 없어집니다.
 
-#### 대안 2. 이벤트 스트림 방식으로 처리할 것 인가??
+#### 대안 3. 이벤트 스트림 방식으로 처리할 것 인가??
 
 - 시스템의 모든 변경 사항(생성, 수정, 삭제)을 이벤트 로그로 영구 저장하여 강력한 변경 이력 검증이 가능합니다.
 - 감사와 추적에는 강력합니다.
@@ -290,7 +303,7 @@ erDiagram
 
 ### 최종적으로 선택한 방법의 이유
 
-제가 최종으로 선택한 방법은 Order 최신 상태 + History 전체 스냅샷 + changedFields를 활용했습니다.
+제가 최종으로 선택한 방법은 Order 최신 상태 + History 전체 스냅샷 + changedFields(JSONB)를 활용했습니다.
 
 #### 우리 도메인의 특성상 최신 발주서 조회와 과거 이력 조회가 모두 중요하다고 생각했습니다.
 
@@ -582,7 +595,7 @@ const history = await this.prisma.history.findUnique({
 
 #### 특정 시점 조회
 
-특정 시점 조회는 `YYYY-MM-DD` 형식의 한국시간 일자를 기준으로 해당 날짜의 마지막 시점까지 유효해진 최신 버전을 찾습니다. 한국시간은 UTC보다 9시간 빠르기 때문에, `2025-02-16 23:59:59.999 KST`는 내부 비교 시 `2025-02-16T14:59:59.999Z`가 됩니다.
+특정 시점 조회는 `YYYY-MM-DD` 형식의 한국시간 일자를 기준으로 해당 날짜의 마지막 시점까지 유효해진 최신 버전을 찾습니다.
 
 ```ts
 if (!/^\d{4}-\d{2}-\d{2}$/.test(at)) {
@@ -592,19 +605,11 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(at)) {
 const [year, month, day] = at.split('-').map(Number);
 const lastDayOfMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
 
-if (
-  year < 1000 ||
-  month < 1 ||
-  month > 12 ||
-  day < 1 ||
-  day > lastDayOfMonth
-) {
+if (year < 1000 || month < 1 || month > 12 || day < 1 || day > lastDayOfMonth) {
   throw new DomainException(DomainErrorCode.ORDER_HISTORY_INVALID_QUERY);
 }
 
-const effectiveAt = new Date(
-  Date.UTC(year, month - 1, day, 14, 59, 59, 999),
-);
+const effectiveAt = new Date(Date.UTC(year, month - 1, day, 14, 59, 59, 999));
 
 const history = await this.prisma.history.findFirst({
   where: {
@@ -679,12 +684,12 @@ return {
 
 #### 이력 조회 및 비교
 
-| 상황                         | 에러 코드                                | 설명                             |
-| ---------------------------- | ---------------------------------------- | -------------------------------- |
-| 존재하지 않는 버전 조회      | `ORDER_VERSION_NOT_FOUND`                | `orderNo + version` History 없음 |
+| 상황                          | 에러 코드                                | 설명                                                   |
+| ----------------------------- | ---------------------------------------- | ------------------------------------------------------ |
+| 존재하지 않는 버전 조회       | `ORDER_VERSION_NOT_FOUND`                | `orderNo + version` History 없음                       |
 | 특정 시점 조회 날짜 형식 오류 | `ORDER_HISTORY_INVALID_QUERY`            | `at`이 `YYYY-MM-DD` 형식이 아니거나 존재하지 않는 날짜 |
-| 특정 시점에 유효한 버전 없음 | `ORDER_VERSION_AS_OF_NOT_FOUND`          | 해당 시점 이전의 History 없음    |
-| 비교 대상 버전 없음          | `ORDER_VERSION_COMPARE_TARGET_NOT_FOUND` | from/to 중 하나 이상 없음        |
+| 특정 시점에 유효한 버전 없음  | `ORDER_VERSION_AS_OF_NOT_FOUND`          | 해당 시점 이전의 History 없음                          |
+| 비교 대상 버전 없음           | `ORDER_VERSION_COMPARE_TARGET_NOT_FOUND` | from/to 중 하나 이상 없음                              |
 
 ### 테스트와 검증
 

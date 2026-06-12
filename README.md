@@ -338,20 +338,20 @@ e2e 테스트는 테스트 시작 전 아래 테이블을 정리합니다.
 
 ### 이력 조회 테스트
 
-| 시나리오                   | 검증 내용                                                                              | 테스트 위치                                                 |
-| -------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| 특정 버전 조회             | `GET /histories/{orderNo}/versions/2`가 version 2의 전체 발주서 상태를 반환하는지 검증 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
+| 시나리오                   | 검증 내용                                                                                                | 테스트 위치                                                 |
+| -------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 특정 버전 조회             | `GET /histories/{orderNo}/versions/2`가 version 2의 전체 발주서 상태를 반환하는지 검증                   | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
 | 특정 시점 조회             | `GET /histories/{orderNo}/as-of?at=YYYY-MM-DD`가 한국시간 기준 해당 일자에 유효한 버전을 반환하는지 검증 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
-| 존재하지 않는 버전 조회    | 없는 버전 조회 시 `ORDER_VERSION_NOT_FOUND` 반환 검증                                  | `src/orders/orders.service.spec.ts`                         |
-| 전체 변경 이력 조회        | `GET /histories`가 모든 발주서의 변경 이력을 반환하는지 검증                           | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
-| 특정 발주서 변경 이력 조회 | `GET /histories/{orderNo}`가 특정 발주서의 버전 목록을 반환하는지 검증                 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
+| 존재하지 않는 버전 조회    | 없는 버전 조회 시 `ORDER_VERSION_NOT_FOUND` 반환 검증                                                    | `src/orders/orders.service.spec.ts`                         |
+| 전체 변경 이력 조회        | `GET /histories`가 모든 발주서의 변경 이력을 반환하는지 검증                                             | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
+| 특정 발주서 변경 이력 조회 | `GET /histories/{orderNo}`가 특정 발주서의 버전 목록을 반환하는지 검증                                   | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
 
 ### 변경 비교 테스트
 
-| 시나리오            | 검증 내용                                                                                                                                  | 테스트 위치                                                 |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| 시나리오            | 검증 내용                                                                                                                                            | 테스트 위치                                                 |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | 버전 간 차이 비교   | `GET /histories/{orderNo}/compare?fromVersion=1&toVersion=2`가 변경된 필드, 이전값, 이후값, 수량 delta, 납기일 from/to와 deltaDays를 반환하는지 검증 | `src/orders/orders.service.spec.ts`, `test/app.e2e-spec.ts` |
-| 비교 대상 버전 없음 | 비교 대상 버전이 없으면 `ORDER_VERSION_COMPARE_TARGET_NOT_FOUND` 반환 검증                                                                 | `src/orders/orders.service.spec.ts`                         |
+| 비교 대상 버전 없음 | 비교 대상 버전이 없으면 `ORDER_VERSION_COMPARE_TARGET_NOT_FOUND` 반환 검증                                                                           | `src/orders/orders.service.spec.ts`                         |
 
 ### 통합 시나리오 테스트
 
