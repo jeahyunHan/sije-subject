@@ -26,7 +26,7 @@ describe('RequestsService', () => {
 
   const confirmedOrder = {
     id: 'order-id',
-    orderNo: 'PO-2025-0001',
+    orderNo: 'PO-2026-000001',
     productName: '티셔츠',
     quantity: 1000,
     unitPrice: 5000,
@@ -41,7 +41,7 @@ describe('RequestsService', () => {
   };
 
   const createDto: CreateRequestDto = {
-    orderNo: ' PO-2025-0001 ',
+    orderNo: ' PO-2026-000001 ',
     reason: '수량 증가 및 납기 연장',
     requestedQuantity: 1500,
     requestedDueDate: '2025-03-25',
@@ -97,7 +97,7 @@ describe('RequestsService', () => {
   it('creates a pending change request for a confirmed order', async () => {
     const createdRequest = {
       id: 'request-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       reason: '수량 증가 및 납기 연장',
       requestedQuantity: 1500,
       requestedDueDate: new Date('2025-03-25'),
@@ -111,17 +111,17 @@ describe('RequestsService', () => {
 
     await expect(service.create(createDto)).resolves.toBe(createdRequest);
     expect(prisma.order.findUnique).toHaveBeenCalledWith({
-      where: { orderNo: 'PO-2025-0001' },
+      where: { orderNo: 'PO-2026-000001' },
     });
     expect(prisma.request.findFirst).toHaveBeenCalledWith({
       where: {
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         status: 'PENDING',
       },
     });
     expect(prisma.request.create).toHaveBeenCalledWith({
       data: {
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         reason: '수량 증가 및 납기 연장',
         requestedQuantity: 1500,
         requestedDueDate: new Date('2025-03-25'),
@@ -135,12 +135,12 @@ describe('RequestsService', () => {
     const requests = [
       {
         id: 'request-2',
-        orderNo: 'PO-2025-0002',
+        orderNo: 'PO-2026-000002',
         status: 'REJECTED',
       },
       {
         id: 'request-1',
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         status: 'APPROVED',
       },
     ];
@@ -157,17 +157,17 @@ describe('RequestsService', () => {
     const requests = [
       {
         id: 'request-id',
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         status: 'REJECTED',
       },
     ];
     prisma.request.findMany.mockResolvedValue(requests);
 
-    await expect(service.findAll({ orderNo: ' PO-2025-0001 ' })).resolves.toBe(
+    await expect(service.findAll({ orderNo: ' PO-2026-000001 ' })).resolves.toBe(
       requests,
     );
     expect(prisma.request.findMany).toHaveBeenCalledWith({
-      where: { orderNo: 'PO-2025-0001' },
+      where: { orderNo: 'PO-2026-000001' },
       orderBy: { createdAt: 'desc' },
     });
   });
@@ -176,7 +176,7 @@ describe('RequestsService', () => {
     const requests = [
       {
         id: 'request-id',
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         status: 'APPROVED',
       },
     ];
@@ -195,7 +195,7 @@ describe('RequestsService', () => {
     const requests = [
       {
         id: 'request-id',
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         status: 'REJECTED',
       },
     ];
@@ -203,13 +203,13 @@ describe('RequestsService', () => {
 
     await expect(
       service.findAll({
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         status: 'REJECTED',
       }),
     ).resolves.toBe(requests);
     expect(prisma.request.findMany).toHaveBeenCalledWith({
       where: {
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         status: 'REJECTED',
       },
       orderBy: { createdAt: 'desc' },
@@ -254,7 +254,7 @@ describe('RequestsService', () => {
   it('rejects change request creation when no change field is provided', async () => {
     await expect(
       service.create({
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         reason: '변경 요청',
         requestedBy: 'buyer-user',
         actorRole: ActorRole.BUYER,
@@ -272,7 +272,7 @@ describe('RequestsService', () => {
     await expect(service.create(createDto)).rejects.toMatchObject({
       response: {
         code: DomainErrorCode.ORDER_NOT_FOUND,
-        details: { orderNo: 'PO-2025-0001' },
+        details: { orderNo: 'PO-2026-000001' },
       },
     });
   });
@@ -300,7 +300,7 @@ describe('RequestsService', () => {
       response: {
         code: DomainErrorCode.ORDER_NOT_CHANGEABLE,
         details: {
-          orderNo: 'PO-2025-0001',
+          orderNo: 'PO-2026-000001',
           currentStatus: 'DRAFT',
         },
       },
@@ -311,7 +311,7 @@ describe('RequestsService', () => {
     prisma.order.findUnique.mockResolvedValue(confirmedOrder);
     prisma.request.findFirst.mockResolvedValue({
       id: 'pending-request-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       status: 'PENDING',
     });
 
@@ -319,7 +319,7 @@ describe('RequestsService', () => {
       response: {
         code: DomainErrorCode.CHANGE_REQUEST_PENDING_EXISTS,
         details: {
-          orderNo: 'PO-2025-0001',
+          orderNo: 'PO-2026-000001',
           requestId: 'pending-request-id',
         },
       },
@@ -366,7 +366,7 @@ describe('RequestsService', () => {
   it('approves a pending change request and stores a new order history version', async () => {
     const pendingRequest = {
       id: 'request-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       reason: '수량 증가 및 납기 연장',
       requestedQuantity: 1500,
       requestedDueDate: new Date('2025-03-25'),
@@ -388,7 +388,7 @@ describe('RequestsService', () => {
     };
     const history = {
       id: 'history-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       requestId: 'request-id',
       version: 2,
       productName: '티셔츠',
@@ -422,10 +422,10 @@ describe('RequestsService', () => {
       where: { id: 'request-id' },
     });
     expect(transaction.order.findUnique).toHaveBeenCalledWith({
-      where: { orderNo: 'PO-2025-0001' },
+      where: { orderNo: 'PO-2026-000001' },
     });
     expect(transaction.order.update).toHaveBeenCalledWith({
-      where: { orderNo: 'PO-2025-0001' },
+      where: { orderNo: 'PO-2026-000001' },
       data: {
         quantity: 1500,
         dueDate: new Date('2025-03-25'),
@@ -443,7 +443,7 @@ describe('RequestsService', () => {
     });
     expect(transaction.history.create).toHaveBeenCalledWith({
       data: {
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         requestId: 'request-id',
         version: 2,
         productName: '티셔츠',
@@ -472,7 +472,7 @@ describe('RequestsService', () => {
   it('approves the pending change request for an order number', async () => {
     const pendingRequest = {
       id: 'request-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       reason: '수량 증가 및 납기 연장',
       requestedQuantity: 1500,
       requestedDueDate: new Date('2025-03-25'),
@@ -494,7 +494,7 @@ describe('RequestsService', () => {
     };
     const history = {
       id: 'history-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       requestId: 'request-id',
       version: 2,
       productName: '티셔츠',
@@ -514,7 +514,7 @@ describe('RequestsService', () => {
     transaction.history.create.mockResolvedValue(history);
 
     await expect(
-      service.approvePendingByOrderNo(' PO-2025-0001 ', {
+      service.approvePendingByOrderNo(' PO-2026-000001 ', {
         reviewedBy: ' sourcing-user ',
         reviewComment: ' 생산 가능 ',
         actorRole: ActorRole.SOURCING,
@@ -526,7 +526,7 @@ describe('RequestsService', () => {
     });
     expect(prisma.request.findFirst).toHaveBeenCalledWith({
       where: {
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         status: 'PENDING',
       },
     });
@@ -538,7 +538,7 @@ describe('RequestsService', () => {
   it('rejects a pending change request without updating the order', async () => {
     const pendingRequest = {
       id: 'request-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       requestedQuantity: 1500,
       requestedDueDate: new Date('2025-03-25'),
       status: 'PENDING',
@@ -576,7 +576,7 @@ describe('RequestsService', () => {
   it('rejects the pending change request for an order number', async () => {
     const pendingRequest = {
       id: 'request-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       requestedQuantity: 1500,
       requestedDueDate: new Date('2025-03-25'),
       status: 'PENDING',
@@ -594,7 +594,7 @@ describe('RequestsService', () => {
     prisma.request.update.mockResolvedValue(rejectedRequest);
 
     await expect(
-      service.rejectPendingByOrderNo(' PO-2025-0001 ', {
+      service.rejectPendingByOrderNo(' PO-2026-000001 ', {
         reviewedBy: ' sourcing-user ',
         reviewComment: ' 생산 일정 불가 ',
         actorRole: ActorRole.SOURCING,
@@ -602,7 +602,7 @@ describe('RequestsService', () => {
     ).resolves.toBe(rejectedRequest);
     expect(prisma.request.findFirst).toHaveBeenCalledWith({
       where: {
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         status: 'PENDING',
       },
     });
@@ -621,7 +621,7 @@ describe('RequestsService', () => {
     prisma.request.findFirst.mockResolvedValue(null);
 
     await expect(
-      service.approvePendingByOrderNo('PO-2025-0001', {
+      service.approvePendingByOrderNo('PO-2026-000001', {
         reviewedBy: 'sourcing-user',
         reviewComment: '승인',
         actorRole: ActorRole.SOURCING,
@@ -630,7 +630,7 @@ describe('RequestsService', () => {
       response: {
         code: DomainErrorCode.CHANGE_REQUEST_PENDING_NOT_FOUND,
         details: {
-          orderNo: 'PO-2025-0001',
+          orderNo: 'PO-2026-000001',
           status: 'PENDING',
         },
       },

@@ -20,7 +20,7 @@ describe('DomainException', () => {
   it('builds a standard error response from the catalog', () => {
     const exception = new DomainException(
       DomainErrorCode.CHANGE_REQUEST_PENDING_EXISTS,
-      { orderNo: 'PO-2025-0001' },
+      { orderNo: 'PO-2026-000001' },
     );
     const response = exception.getResponse() as DomainErrorResponse;
 
@@ -30,7 +30,7 @@ describe('DomainException', () => {
       code: DomainErrorCode.CHANGE_REQUEST_PENDING_EXISTS,
       stage: 'CHANGE_REQUEST_CREATE',
       message: '동일 발주서에 대기 중인 변경 요청이 있습니다.',
-      details: { orderNo: 'PO-2025-0001' },
+      details: { orderNo: 'PO-2026-000001' },
     });
   });
 

@@ -325,7 +325,7 @@ describe('OrdersService', () => {
   it('confirms a pending order and creates the initial history version', async () => {
     const pendingOrder = {
       id: 'order-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       productName: '티셔츠',
       quantity: 1000,
       unitPrice: 5000,
@@ -347,7 +347,7 @@ describe('OrdersService', () => {
     };
     const history = {
       id: 'history-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       requestId: null,
       version: 1,
       productName: '티셔츠',
@@ -373,17 +373,17 @@ describe('OrdersService', () => {
     transaction.history.create.mockResolvedValue(history);
 
     await expect(
-      service.confirm(' PO-2025-0001 ', {
+      service.confirm(' PO-2026-000001 ', {
         confirmedBy: ' sourcing-user ',
         actorRole: ActorRole.SOURCING,
       }),
     ).resolves.toEqual({ order: confirmedOrder, history });
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(transaction.order.findUnique).toHaveBeenCalledWith({
-      where: { orderNo: 'PO-2025-0001' },
+      where: { orderNo: 'PO-2026-000001' },
     });
     expect(transaction.order.update).toHaveBeenCalledWith({
-      where: { orderNo: 'PO-2025-0001' },
+      where: { orderNo: 'PO-2026-000001' },
       data: {
         status: 'CONFIRMED',
         version: 1,
@@ -391,7 +391,7 @@ describe('OrdersService', () => {
     });
     expect(transaction.history.create).toHaveBeenCalledWith({
       data: {
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         requestId: null,
         version: 1,
         productName: '티셔츠',
@@ -415,7 +415,7 @@ describe('OrdersService', () => {
 
   it('rejects order confirmation by a non-sourcing actor', async () => {
     await expect(
-      service.confirm('PO-2025-0001', {
+      service.confirm('PO-2026-000001', {
         confirmedBy: 'buyer-user',
         actorRole: ActorRole.BUYER,
       }),
@@ -445,12 +445,12 @@ describe('OrdersService', () => {
 
   it('rejects order confirmation unless the order is pending review', async () => {
     transaction.order.findUnique.mockResolvedValue({
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       status: 'DRAFT',
     });
 
     await expect(
-      service.confirm('PO-2025-0001', {
+      service.confirm('PO-2026-000001', {
         confirmedBy: 'sourcing-user',
         actorRole: ActorRole.SOURCING,
       }),
@@ -458,7 +458,7 @@ describe('OrdersService', () => {
       response: {
         code: DomainErrorCode.ORDER_CONFIRM_INVALID_STATUS,
         details: {
-          orderNo: 'PO-2025-0001',
+          orderNo: 'PO-2026-000001',
           currentStatus: 'DRAFT',
         },
       },
@@ -469,7 +469,7 @@ describe('OrdersService', () => {
     const orders = [
       {
         id: 'order-id',
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
       },
     ];
     prisma.order.findMany.mockResolvedValue(orders);
@@ -483,13 +483,13 @@ describe('OrdersService', () => {
   it('finds an order by order number', async () => {
     const order = {
       id: 'order-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
     };
     prisma.order.findUnique.mockResolvedValue(order);
 
-    await expect(service.findOne(' PO-2025-0001 ')).resolves.toBe(order);
+    await expect(service.findOne(' PO-2026-000001 ')).resolves.toBe(order);
     expect(prisma.order.findUnique).toHaveBeenCalledWith({
-      where: { orderNo: 'PO-2025-0001' },
+      where: { orderNo: 'PO-2026-000001' },
     });
   });
 
@@ -508,12 +508,12 @@ describe('OrdersService', () => {
     const histories = [
       {
         id: 'history-v2',
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         version: 2,
       },
       {
         id: 'history-v1',
-        orderNo: 'PO-2025-0002',
+        orderNo: 'PO-2026-000002',
         version: 1,
       },
     ];
@@ -534,17 +534,17 @@ describe('OrdersService', () => {
   it('lists approved order history snapshots in version order', async () => {
     const order = {
       id: 'order-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
     };
     const histories = [
       {
         id: 'history-v1',
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         version: 1,
       },
       {
         id: 'history-v2',
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         version: 2,
       },
     ];
@@ -552,11 +552,11 @@ describe('OrdersService', () => {
     prisma.order.findUnique.mockResolvedValue(order);
     prisma.history.findMany.mockResolvedValue(histories);
 
-    await expect(service.findHistories(' PO-2025-0001 ')).resolves.toBe(
+    await expect(service.findHistories(' PO-2026-000001 ')).resolves.toBe(
       histories,
     );
     expect(prisma.history.findMany).toHaveBeenCalledWith({
-      where: { orderNo: 'PO-2025-0001' },
+      where: { orderNo: 'PO-2026-000001' },
       orderBy: { version: 'asc' },
     });
   });
@@ -564,11 +564,11 @@ describe('OrdersService', () => {
   it('finds a specific order version snapshot', async () => {
     const order = {
       id: 'order-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
     };
     const version2 = {
       id: 'history-v2',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       version: 2,
       quantity: 1500,
       dueDate: new Date('2025-03-15'),
@@ -577,13 +577,13 @@ describe('OrdersService', () => {
     prisma.order.findUnique.mockResolvedValue(order);
     prisma.history.findUnique.mockResolvedValue(version2);
 
-    await expect(service.findVersion('PO-2025-0001', '2')).resolves.toBe(
+    await expect(service.findVersion('PO-2026-000001', '2')).resolves.toBe(
       version2,
     );
     expect(prisma.history.findUnique).toHaveBeenCalledWith({
       where: {
         orderNo_version: {
-          orderNo: 'PO-2025-0001',
+          orderNo: 'PO-2026-000001',
           version: 2,
         },
       },
@@ -593,17 +593,17 @@ describe('OrdersService', () => {
   it('throws when a specific order version does not exist', async () => {
     prisma.order.findUnique.mockResolvedValue({
       id: 'order-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
     });
     prisma.history.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.findVersion('PO-2025-0001', '99'),
+      service.findVersion('PO-2026-000001', '99'),
     ).rejects.toMatchObject({
       response: {
         code: DomainErrorCode.ORDER_VERSION_NOT_FOUND,
         details: {
-          orderNo: 'PO-2025-0001',
+          orderNo: 'PO-2026-000001',
           version: 99,
         },
       },
@@ -613,7 +613,7 @@ describe('OrdersService', () => {
   it('finds the order snapshot that was effective at a specific time', async () => {
     const version2 = {
       id: 'history-v2',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       version: 2,
       quantity: 1500,
       dueDate: new Date('2025-03-15'),
@@ -622,16 +622,16 @@ describe('OrdersService', () => {
 
     prisma.order.findUnique.mockResolvedValue({
       id: 'order-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
     });
     prisma.history.findFirst.mockResolvedValue(version2);
 
-    await expect(service.findAsOf('PO-2025-0001', '2025-02-16')).resolves.toBe(
+    await expect(service.findAsOf('PO-2026-000001', '2025-02-16')).resolves.toBe(
       version2,
     );
     expect(prisma.history.findFirst).toHaveBeenCalledWith({
       where: {
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         effectiveAt: {
           lte: new Date('2025-02-16T14:59:59.999Z'),
         },
@@ -643,16 +643,16 @@ describe('OrdersService', () => {
   it('rejects an as-of query that is not a KST YYYY-MM-DD date', async () => {
     prisma.order.findUnique.mockResolvedValue({
       id: 'order-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
     });
 
     await expect(
-      service.findAsOf('PO-2025-0001', '2025-02-16T00:00:00.000Z'),
+      service.findAsOf('PO-2026-000001', '2025-02-16T00:00:00.000Z'),
     ).rejects.toMatchObject({
       response: {
         code: DomainErrorCode.ORDER_HISTORY_INVALID_QUERY,
         details: {
-          orderNo: 'PO-2025-0001',
+          orderNo: 'PO-2026-000001',
           at: '2025-02-16T00:00:00.000Z',
           expectedFormat: 'YYYY-MM-DD',
           timezone: 'Asia/Seoul',
@@ -665,12 +665,12 @@ describe('OrdersService', () => {
   it('throws when no order version was effective at a specific time', async () => {
     prisma.order.findUnique.mockResolvedValue({
       id: 'order-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
     });
     prisma.history.findFirst.mockResolvedValue(null);
 
     await expect(
-      service.findAsOf('PO-2025-0001', '2025-02-01'),
+      service.findAsOf('PO-2026-000001', '2025-02-01'),
     ).rejects.toMatchObject({
       response: {
         code: DomainErrorCode.ORDER_VERSION_AS_OF_NOT_FOUND,
@@ -681,12 +681,12 @@ describe('OrdersService', () => {
   it('compares two order versions and returns changed fields only', async () => {
     prisma.order.findUnique.mockResolvedValue({
       id: 'order-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
     });
     prisma.history.findMany.mockResolvedValue([
       {
         id: 'history-v1',
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         version: 1,
         productName: '티셔츠',
         quantity: 1000,
@@ -700,7 +700,7 @@ describe('OrdersService', () => {
       },
       {
         id: 'history-v3',
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         version: 3,
         productName: '티셔츠',
         quantity: 1500,
@@ -715,9 +715,9 @@ describe('OrdersService', () => {
     ]);
 
     await expect(
-      service.compareVersions('PO-2025-0001', '1', '3'),
+      service.compareVersions('PO-2026-000001', '1', '3'),
     ).resolves.toEqual({
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
       fromVersion: 1,
       toVersion: 3,
       differences: {
@@ -738,23 +738,23 @@ describe('OrdersService', () => {
   it('throws when a compare target version does not exist', async () => {
     prisma.order.findUnique.mockResolvedValue({
       id: 'order-id',
-      orderNo: 'PO-2025-0001',
+      orderNo: 'PO-2026-000001',
     });
     prisma.history.findMany.mockResolvedValue([
       {
         id: 'history-v1',
-        orderNo: 'PO-2025-0001',
+        orderNo: 'PO-2026-000001',
         version: 1,
       },
     ]);
 
     await expect(
-      service.compareVersions('PO-2025-0001', '1', '3'),
+      service.compareVersions('PO-2026-000001', '1', '3'),
     ).rejects.toMatchObject({
       response: {
         code: DomainErrorCode.ORDER_VERSION_COMPARE_TARGET_NOT_FOUND,
         details: {
-          orderNo: 'PO-2025-0001',
+          orderNo: 'PO-2026-000001',
           fromVersion: 1,
           toVersion: 3,
           foundVersions: [1],
